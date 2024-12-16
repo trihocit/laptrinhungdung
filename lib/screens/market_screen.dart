@@ -1,327 +1,192 @@
+import 'dart:convert';
+import '../models/productPost.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 class MarketScreen extends StatefulWidget {
   const MarketScreen({super.key});
 
   @override
-  _MarketScreenState createState() => _MarketScreenState();
+  State<MarketScreen> createState() => _MarketScreenState();
 }
 
 class _MarketScreenState extends State<MarketScreen> {
-  DateTime? selectedDate;
-  double? minPrice;
-  double? maxPrice;
-
-  // Track products added on each date
-  Map<DateTime, List<Map<String, dynamic>>> productsByDate = {};
-  List<Map<String, dynamic>> currentProducts = [];
-
+  final String baseUrl =
+      'https://oldsparklywave20.conveyor.cloud/api/ProductApi';
+  late Future<List<productPost>> productsFuture;
+  final TextEditingController searchController = TextEditingController();
   @override
   void initState() {
     super.initState();
-    selectedDate = DateTime.now(); // Default to today
-    _initializeProducts();
+    productsFuture = fetchPosts(); // Initialize productsFuture
   }
 
-  void _initializeProducts() {
-    productsByDate[selectedDate!] = List.generate(10, (index) => {
-      'title': 'Giap #$index',
-      'description': 'Dep trai',
-      'price': '${(index + 1) * 10}',
-      'image': 'assets/anh_tab_logo.jpg',
-      'detailedDescription': 'Sản phẩm này quá đẹp trai #$index.',
-      'createdAt': DateTime.now().subtract(Duration(days: index)), // Example timestamps
-    });
-    currentProducts = productsByDate[selectedDate!]!;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Filter products based on price range
-    final filteredProducts = currentProducts.where((product) {
-      double price = double.parse(product['price']!);
-      bool withinMin = minPrice == null || price >= minPrice!;
-      bool withinMax = maxPrice == null || price <= maxPrice!;
-      return withinMin && withinMax;
-    }).toList();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Marketplace'),
-        backgroundColor: Colors.blueAccent,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () => _showFilterDialog(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () => _selectDate(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _showAddProductDialog(),
-          ),
-        ],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.blueAccent,
-              ),
-              child: const Text(
-                'Marketplace',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.view_list),
-              title: const Text('Luot xem tat ca'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.notifications),
-              title: const Text('Thong bao'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.shopping_basket),
-              title: const Text('Dang mua'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.sell),
-              title: const Text('Ban hang'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(),
-            const ListTile(
-              title: Text('Vị trí: Thành phố Hồ Chí Minh'),
-            ),
-            const ListTile(
-              title: Text('Hạng mục: Xe cộ'),
-            ),
-          ],
-        ),
-      ),
-      body: filteredProducts.isEmpty
-          ? const Center(child: Text('Không có sản phẩm nào đã thêm cho ngày này.'))
-          : ListView.builder(
-        itemCount: filteredProducts.length,
-        itemBuilder: (context, index) {
-          final product = filteredProducts[index];
-          return MouseRegion(
-            onEnter: (_) => _showTooltip(context, product),
-            onExit: (_) => _hideTooltip(),
-            child: Card(
-              margin: const EdgeInsets.all(8.0),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(10.0),
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: Image.asset(
-                    product['image']!,
-                    width: 50.0,
-                    height: 50.0,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 50.0,
-                        height: 50.0,
-                        color: Colors.grey,
-                        child: const Icon(Icons.error),
-                      );
-                    },
-                  ),
-                ),
-                title: Text(product['title']!),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(product['description']!),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${product['price']}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Đăng vào: ${product['createdAt'].toLocal().toString().split(' ')[0]}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.add_shopping_cart),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('ĐÃ THÊM VÀO GIỎ HÀNG: ${product['title']}')),
-                    );
-                  },
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ProductDetailScreen(product: product),
-                    ),
-                  );
-                },
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _showTooltip(BuildContext context, Map<String, dynamic> product) {
-    final overlay = Overlay.of(context);
-    final overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: 100.0, // Adjust position as necessary
-        left: 100.0, // Adjust position as necessary
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(8.0),
-            color: Colors.black87,
-            child: Text(
-              product['detailedDescription']!,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    overlay.insert(overlayEntry);
-
-    Future.delayed(const Duration(seconds: 2), () {
-      overlayEntry.remove();
-    });
-  }
-
-  void _hideTooltip() {
-    // Optionally implement any logic to hide the tooltip when not hovering
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-        // Check if there are products for the selected date
-        if (productsByDate[selectedDate!] != null && productsByDate[selectedDate!]!.isNotEmpty) {
-          currentProducts = productsByDate[selectedDate!]!;
-        } else {
-          currentProducts = [];
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: const Text('Không có sản phẩm nào cho ngày này.')),
-          );
-        }
-      });
+  // Function to fetch the list of products
+  Future<List<productPost>> fetchPosts() async {
+    final response = await http.get(Uri.parse(baseUrl));
+    if (response.statusCode == 200) {
+      List<dynamic> data = json.decode(response.body);
+      return data.map((item) => productPost.fromJson(item)).toList();
+    } else {
+      throw Exception('Failed to load products');
     }
   }
 
-  Future<void> _showAddProductDialog() async {
-    String title = '';
-    String description = '';
-    String price = '';
+  // Function to add a new product
+  Future<void> addProduct(productPost product) async {
+    final response = await http.post(
+      Uri.parse(baseUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(product.toJson()),
+    );
+    if (response.statusCode == 201) {
+      setState(() {
+        productsFuture = fetchPosts();
+      });
+    } else {
+      throw Exception('Failed to add product');
+    }
+  }
 
-    await showDialog(
+  /// Cập nhật thông tin sản phẩm
+  Future<void> updateProduct(int id, productPost updatedProduct) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/$id'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(updatedProduct.toJson()),
+    );
+    if (response.statusCode == 204) {
+      setState(() {
+        productsFuture = fetchPosts();
+      });
+    } else {
+      throw Exception('Failed to update product');
+    }
+  }
+
+  Future<List<productPost>> searchProducts(String query) async {
+    if (int.tryParse(query) != null) {
+      // Tìm kiếm theo ID
+      final response = await http.get(Uri.parse('$baseUrl/${query}'));
+      if (response.statusCode == 200) {
+        return [productPost.fromJson(json.decode(response.body))];
+      } else {
+        return [];
+      }
+    } else {
+      // Tìm kiếm theo tên
+      final response = await http.get(
+          Uri.parse('$baseUrl/search?search=$query'));
+      if (response.statusCode == 200) {
+        List<dynamic> data = json.decode(response.body);
+        return data.map((item) => productPost.fromJson(item)).toList();
+      } else {
+        throw Exception('Search failed');
+      }
+    }
+  }
+
+  /// Thực hiện tìm kiếm
+  void _handleSearch() async {
+    String query = searchController.text.trim();
+    if (query.isNotEmpty) {
+      try {
+        List<productPost> results = await searchProducts(query);
+        setState(() {
+          productsFuture = Future.value(results);
+        });
+      } catch (e) {
+        _showErrorDialog('Không tìm thấy sản phẩm');
+      }
+    } else {
+      _showErrorDialog('Vui lòng nhập thông tin tìm kiếm');
+    }
+  }
+  void _showErrorDialog(String message) {
+    showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Thêm sản phẩm'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(labelText: 'Tiêu đề'),
-                onChanged: (value) {
-                  title = value;
-                },
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Mô tả'),
-                onChanged: (value) {
-                  description = value;
-                },
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Giá'),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  price = value;
-                },
-              ),
-            ],
-          ),
+          title: const Text('Lỗi'),
+          content: Text(message),
           actions: [
             TextButton(
               onPressed: () {
-                if (title.isNotEmpty && description.isNotEmpty && price.isNotEmpty) {
-                  final newProduct = {
-                    'title': title,
-                    'description': description,
-                    'price': price,
-                    'image': 'assets/anh_tab_logo.jpg', // Default image
-                    'detailedDescription': 'Mô tả chi tiết cho: $title',
-                    'createdAt': DateTime.now(), // Set the creation time
-                  };
-
-                  // Add product to the list for the selected date
-                  if (productsByDate[selectedDate] == null) {
-                    productsByDate[selectedDate!] = [];
-                  }
-                  productsByDate[selectedDate!]!.add(newProduct);
-
-                  // Update current products for the UI
-                  setState(() {
-                    currentProducts = productsByDate[selectedDate!]!;
-                  });
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Sản phẩm đã được thêm: $title')),
-                  );
-
-                  Navigator.of(context).pop();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Vui lòng điền đầy đủ thông tin.')),
-                  );
-                }
+                Navigator.of(context).pop();
               },
+              child: const Text('Đóng'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  /// Xóa sản phẩm
+  Future<void> deleteProduct(int id) async {
+    final response = await http.delete(Uri.parse('$baseUrl/$id'));
+    if (response.statusCode == 204) {
+      setState(() {
+        productsFuture = fetchPosts();
+      });
+    } else {
+      throw Exception('Failed to delete product');
+    }
+  }
+  // Function to show the dialog for adding a product
+  void _showAddProductDialog() {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    final TextEditingController priceController = TextEditingController();
+    final TextEditingController imageController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Thêm sản phẩm mới'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Tên sản phẩm'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Mô tả'),
+                ),
+                TextField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Giá'),
+                ),
+                TextField(
+                  controller: imageController,
+                  decoration: const InputDecoration(labelText: 'URL ảnh'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Hủy'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
               child: const Text('Thêm'),
-            ),
-            TextButton(
-              onPressed: () {
+              onPressed: () async {
+                productPost newProduct = productPost(
+                  id: 0,
+                  name: nameController.text,
+                  description: descriptionController.text,
+                  price: double.tryParse(priceController.text) ?? 0.0,
+                  image: imageController.text,
+                );
+                await addProduct(newProduct);
                 Navigator.of(context).pop();
               },
-              child: const Text('Hủy'),
             ),
           ],
         );
@@ -329,109 +194,151 @@ class _MarketScreenState extends State<MarketScreen> {
     );
   }
 
-  Future<void> _showFilterDialog() async {
-    double? newMinPrice;
-    double? newMaxPrice;
+  /// Show dialog to edit product
+  void _showEditProductDialog(productPost product) {
+    final TextEditingController nameController = TextEditingController(text: product.name);
+    final TextEditingController descriptionController = TextEditingController(text: product.description);
+    final TextEditingController priceController = TextEditingController(text: product.price.toString());
+    final TextEditingController imageController = TextEditingController(text: product.image);
 
-    await showDialog(
+    showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Lọc theo giá'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(labelText: 'Giá tối thiểu'),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  newMinPrice = double.tryParse(value);
-                },
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Giá tối đa'),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  newMaxPrice = double.tryParse(value);
-                },
-              ),
-            ],
+          title: const Text('Chỉnh sửa sản phẩm'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Tên sản phẩm'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Mô tả'),
+                ),
+                TextField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Giá'),
+                ),
+                TextField(
+                  controller: imageController,
+                  decoration: const InputDecoration(labelText: 'URL ảnh'),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
+              child: const Text('Hủy'),
               onPressed: () {
-                setState(() {
-                  minPrice = newMinPrice;
-                  maxPrice = newMaxPrice;
-                });
                 Navigator.of(context).pop();
               },
-              child: const Text('Lọc'),
             ),
             TextButton(
-              onPressed: () {
+              child: const Text('Lưu'),
+              onPressed: () async {
+                productPost updatedProduct = productPost(
+                  id: product.id,
+                  name: nameController.text,
+                  description: descriptionController.text,
+                  price: double.tryParse(priceController.text) ?? 0.0,
+                  image: imageController.text,
+                );
+                await updateProduct(product.id!, updatedProduct);
                 Navigator.of(context).pop();
               },
-              child: const Text('Hủy'),
             ),
           ],
         );
       },
     );
   }
-}
 
-class ProductDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> product;
 
-  const ProductDetailScreen({super.key, required this.product});
-
+  // Build the UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(product['title']!),
-        backgroundColor: Colors.blueAccent,
+        title: const Text('Market Screen'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _showAddProductDialog,
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Image.asset(
-              product['image']!,
-              width: double.infinity,
-              height: 200,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: Colors.grey,
-                  child: const Icon(Icons.error),
+      body: Column(
+        children: [
+          // Search field
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: searchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tìm kiếm theo ID hoặc tên',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: _handleSearch,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<productPost>>(
+              future: productsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Lỗi: ${snapshot.error}'));
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('Không có sản phẩm.'));
+                }
+
+                List<productPost> posts = snapshot.data!;
+
+                return ListView.builder(
+                  itemCount: posts.length,
+                  itemBuilder: (context, index) {
+                    productPost post = posts[index];
+                    return ListTile(
+                      leading: Image.network(post.image ?? ''),
+                      title: Text(post.name ?? 'Không có tên'),
+                      subtitle: Text(post.description ?? 'Không có mô tả'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () {
+                              _showEditProductDialog(post);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () async {
+                              await deleteProduct(post.id!);
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 );
               },
             ),
-            const SizedBox(height: 16),
-            Text(
-              product['title']!,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Price: \$${product['price']}',
-              style: const TextStyle(fontSize: 20, color: Colors.green),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Đăng vào: ${product['createdAt'].toLocal().toString().split(' ')[0]}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              product['detailedDescription']!,
-              style: const TextStyle(fontSize: 16),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

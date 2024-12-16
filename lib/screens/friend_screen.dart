@@ -12,7 +12,7 @@ class FriendsScreen extends StatelessWidget {
       {'name': 'huy', 'hinh': 'assets/4.jpg'},
       {'name': 'giap', 'hinh': 'assets/5.jpg'},
     ];
-
+// trihocit
     return Scaffold(
       appBar: AppBar(
         title: Padding(
